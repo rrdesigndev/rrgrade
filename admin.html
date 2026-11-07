@@ -42,7 +42,7 @@ async function load(){const{data}=await db.from('activities').select('*').order(
  $('al').innerHTML=acts.length?'':'<tr><td colspan=5 class="mute">No activities yet. Create your first activity above.</td></tr>';
  acts.forEach(a=>{const r=document.createElement('tr');r.innerHTML=`<td>${esc(a.title)}<br><span class="mute">${esc(a.section||'')}</span></td><td>${a.kind}</td><td>${fmt(a.deadline_at)}</td><td><span class="tag">${st(a)}</span></td><td class="row"></td>`;
   const c=r.lastChild,add=(t,f,cl)=>{const b=document.createElement('button');b.textContent=t;if(cl)b.className=cl;b.onclick=f;c.append(b)};
-  add('View Submissions',()=>open(a));add('Link / QR',()=>showQR(a));add('Extend Deadline',()=>ext(a));if(st(a)=='Active')add('Close Now',()=>upd(a,{closed:true}));add('Delete',()=>del(a),'d');$('al').append(r)})}
+  add('View Submissions',()=>open(a));add('Link / QR',()=>showQR(a));add('Extend Deadline',()=>ext(a));if(st(a)=='Active')add('Close Now',()=>{if(confirm('Close "'+a.title+'" now? Students will no longer be able to submit.'))upd(a,{closed:true})});add('Delete',()=>del(a),'d');$('al').append(r)})}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const upd=async(a,p)=>{const{error}=await db.from('activities').update(p).eq('id',a.id);error?alert(error.message):load()};
 function ext(a){const m=+prompt('How many minutes should be added? (e.g. 10, 30, 60)','10');if(!m)return;
