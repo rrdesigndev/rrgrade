@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RR Grade | Admin Dashboard</title><link rel="icon" type="image/svg+xml" href="favicon.svg"><meta name="theme-color" content="#102a43"><link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script src="config.js"></script></head>
+<body><main class="dashboard">
+<div id="login" class="card login-card" hidden><div class="brand"><span class="brand-mark">R</span><div><strong>RR Grade</strong><small>Assessment Management</small></div></div><p class="eyebrow">ADMINISTRATOR ACCESS</p><h1>Welcome back</h1><p class="mute">Sign in to manage activities and student submissions.</p><input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password"><button class="p" id="li">Sign In</button></div>
+<div id="main" hidden><header class="topbar"><div class="brand"><span class="brand-mark">R</span><div><strong>RR Grade</strong><small>Assessment Management</small></div></div><span class="topbar-caption">Instructor workspace</span></header>
+<section class="welcome-row"><div><p class="eyebrow">DASHBOARD</p><h1>Activity Management</h1><p class="mute">Create activities, share submission links, and review student work.</p></div><button id="lo" class="logout-btn">↪ &nbsp;Log Out</button></section>
+<div class="card"><div class="section-heading"><div><p class="eyebrow">CREATE</p><h2>New Activity</h2></div><span class="step-chip">01 / SETUP</span></div><div class="row"><input id="t" placeholder="Activity title (e.g. Problem Set 3)" style="flex:2">
+<select id="k" style="flex:1"><option>Seatwork</option><option>Quiz</option><option>Exam</option><option>Other</option></select><input id="s" placeholder="Section / Subject" style="flex:1"></div>
+<label>Submission Deadline<input id="dl" type="datetime-local"></label>
+<div class="row"><button data-h="1">+1 hour</button><button data-h="3">+3 hours</button><button id="eod">Until 11:00 PM today</button><button class="p" id="mk">Create Activity Link</button></div></div>
+<div class="card" id="qr" hidden><b id="qt"></b><p><a id="ql" target="_blank"></a></p><div id="qc"></div><button id="cp">Copy Link</button></div>
+<div class="card wrap"><div class="section-heading"><div><p class="eyebrow">OVERVIEW</p><h2>Activities</h2></div></div><table><thead><tr><th>Title</th><th>Type</th><th>Submission Deadline</th><th>Status</th><th></th></tr></thead><tbody id="al"></tbody></table></div>
+<div class="card" id="sp" hidden><h2 id="sh"></h2><div class="row"><input id="f" placeholder="Search name, section, or IP address" style="flex:1">
+<button class="p" id="zs">Download Selected (ZIP)</button><button id="za">Download All (ZIP)</button></div><p class="mute" id="zm"></p>
+<div class="wrap"><table><thead><tr><th><input type="checkbox" id="ck" style="width:auto;margin:0"></th><th>Preview</th><th class="s" data-k="student_name">Student Name</th><th class="s" data-k="section">Section</th><th>Pages</th><th class="s" data-k="created_at">Submitted At</th><th class="s" data-k="ip">IP</th><th class="s" data-k="device">Device</th></tr></thead><tbody id="sb"></tbody></table></div>
+<p class="mute">Rows are highlighted when different names share an IP address or device identifier. This is only a review flag, not proof of misconduct; users on the same network may share an IP address.</p></div></div><div class="modal-backdrop" id="logoutModal" hidden><section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="logoutTitle"><div class="modal-icon">↪</div><h2 id="logoutTitle">Log out of RR Grade?</h2><p class="mute">You will need to sign in again to access the administrator dashboard.</p><div class="modal-actions"><button type="button" id="cancelLogout">Stay Signed In</button><button type="button" class="p" id="confirmLogout">Yes, Log Out</button></div></section></div></main>
+<script>
+const db=supabase.createClient(CFG.url,CFG.key),$=i=>document.getElementById(i),B=db.storage.from('uploads');
+let acts=[],subs=[],cur=null,sel=new Set(),sk='created_at',sd=-1,thumbs={};
+const loc=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16),fmt=d=>new Date(d).toLocaleString('en-PH',{timeZone:'Asia/Manila'});
+const st=a=>a.closed||new Date(a.deadline_at)<new Date()?'Closed':new Date(a.start_at)>new Date()?'Scheduled':'Active';
+const url=a=>new URL('index.html?c='+a.code,location.href).href;
+async function init(){const{data:{session}}=await db.auth.getSession();$('login').hidden=!!session;$('main').hidden=!session;if(session)load()}
+$('li').onclick=async()=>{const{error}=await db.auth.signInWithPassword({email:$('em').value,password:$('pw').value});error?alert('Incorrect email or password.'):init()};
+$('lo').onclick=()=>{$('logoutModal').hidden=false;$('cancelLogout').focus()};
+$('cancelLogout').onclick=()=>{$('logoutModal').hidden=true;$('lo').focus()};
+$('confirmLogout').onclick=async()=>{const{error}=await db.auth.signOut();$('logoutModal').hidden=true;if(error)alert('Unable to log out. Please try again.');else init()};
+$('logoutModal').addEventListener('click',e=>{if(e.target===$('logoutModal'))$('cancelLogout').click()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('logoutModal').hidden)$('cancelLogout').click()});
+document.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>$('dl').value=loc(new Date(Date.now()+b.dataset.h*36e5)));
+$('eod').onclick=()=>{const d=new Date();d.setHours(23,0,0,0);$('dl').value=loc(d)};
+$('mk').onclick=async()=>{if(!$('t').value.trim()||!$('dl').value)return alert('Please enter an activity title and deadline.');
+ const code=Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>'abcdefghjkmnpqrstuvwxyz23456789'[b%31]).join('');
+ const{data,error}=await db.from('activities').insert({code,title:$('t').value.trim(),kind:$('k').value,section:$('s').value.trim(),deadline_at:new Date($('dl').value).toISOString()}).select().single();
+ if(error)return alert(error.message);$('t').value='';await load();showQR(data)};
+function showQR(a){$('qr').hidden=false;$('qt').textContent=a.title;$('ql').textContent=$('ql').href=url(a);$('qc').innerHTML='';new QRCode($('qc'),{text:url(a),width:200,height:200});$('qr').scrollIntoView()}
+$('cp').onclick=()=>navigator.clipboard.writeText($('ql').href).then(()=>alert('Link copied to clipboard.'));
+async function load(){const{data}=await db.from('activities').select('*').order('created_at',{ascending:false});acts=data||[];
+ $('al').innerHTML=acts.length?'':'<tr><td colspan=5 class="mute">No activities yet. Create your first activity above.</td></tr>';
+ acts.forEach(a=>{const r=document.createElement('tr');r.innerHTML=`<td>${esc(a.title)}<br><span class="mute">${esc(a.section||'')}</span></td><td>${a.kind}</td><td>${fmt(a.deadline_at)}</td><td><span class="tag">${st(a)}</span></td><td class="row"></td>`;
+  const c=r.lastChild,add=(t,f,cl)=>{const b=document.createElement('button');b.textContent=t;if(cl)b.className=cl;b.onclick=f;c.append(b)};
+  add('View Submissions',()=>open(a));add('Link / QR',()=>showQR(a));add('Extend Deadline',()=>ext(a));if(st(a)=='Active')add('Close Now',()=>upd(a,{closed:true}));add('Delete',()=>del(a),'d');$('al').append(r)})}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const upd=async(a,p)=>{const{error}=await db.from('activities').update(p).eq('id',a.id);error?alert(error.message):load()};
+function ext(a){const m=+prompt('How many minutes should be added? (e.g. 10, 30, 60)','10');if(!m)return;
+ upd(a,{closed:false,deadline_at:new Date(Math.max(Date.now(),new Date(a.deadline_at))+m*6e4).toISOString()})}
+async function del(a){if(!confirm(`Delete "${a.title}" and all of its uploaded images? This action cannot be undone.`))return;
+ const{data}=await db.from('submissions').select('files').eq('activity_id',a.id);const f=(data||[]).flatMap(x=>x.files);
+ if(f.length){const{error}=await B.remove(f);if(error)return alert(error.message)}
+ await db.from('activities').delete().eq('id',a.id);if(cur&&cur.id==a.id){cur=null;$('sp').hidden=true}load()}
+async function open(a){cur=a;sel.clear();$('sp').hidden=false;$('sh').textContent='Submissions: '+a.title;
+ const{data}=await db.from('submissions').select('*').eq('activity_id',a.id);subs=data||[];thumbs={};
+ const ps=subs.map(s=>s.files[0]);if(ps.length){const{data:u}=await B.createSignedUrls(ps,3600);(u||[]).forEach(x=>thumbs[x.path]=x.signedUrl)}
+ draw();$('sp').scrollIntoView()}
+const rows=()=>{const q=$('f').value.toLowerCase();return subs.filter(s=>[s.student_name,s.section,s.ip].join(' ').toLowerCase().includes(q)).sort((x,y)=>((x[sk]||'')>(y[sk]||'')?1:-1)*sd)};
+function draw(){const by=(k)=>{const m={};subs.forEach(s=>{if(s[k])(m[s[k]]=m[s[k]]||new Set()).add(s.student_name.toLowerCase())});return m},ip=by('ip'),dv=by('device');
+ $('sb').innerHTML=rows().length?'':'<tr><td colspan=8 class="mute">No submissions found.</td></tr>';
+ rows().forEach(s=>{const w=(ip[s.ip]?.size>1)||(dv[s.device]?.size>1),r=document.createElement('tr');if(w)r.className='warn';
+  r.innerHTML=`<td><input type="checkbox" style="width:auto;margin:0" ${sel.has(s.id)?'checked':''}></td><td>${thumbs[s.files[0]]?`<a href="${thumbs[s.files[0]]}" target="_blank"><img class="th" src="${thumbs[s.files[0]]}"></a>`:''}</td><td>${esc(s.student_name)}</td><td>${esc(s.section||'')}</td><td>${s.files.length}</td><td>${fmt(s.created_at)}</td><td>${esc(s.ip||'')}</td><td>${esc((s.device||'').slice(0,8))}</td>`;
+  r.querySelector('input').onchange=e=>e.target.checked?sel.add(s.id):sel.delete(s.id);$('sb').append(r)})}
+$('f').oninput=draw;$('ck').onchange=e=>{rows().forEach(s=>e.target.checked?sel.add(s.id):sel.delete(s.id));draw()};
+document.querySelectorAll('th.s').forEach(h=>h.onclick=()=>{sd=sk==h.dataset.k?-sd:1;sk=h.dataset.k;draw()});
+async function zip(list){if(!list.length)return alert('No submissions selected.');const z=new JSZip(),used=new Set();let n=0,tot=list.reduce((a,s)=>a+s.files.length,0);
+ for(const s of list)for(let i=0;i<s.files.length;i++){$('zm').textContent=`Downloading ${++n} of ${tot}…`;
+  const{data,error}=await B.download(s.files[i]);if(error)continue;let nm=s.student_name.replace(/[^\w\-]+/g,'_')+'_'+(s.section||'').replace(/[^\w\-]+/g,'_');
+  let f=`${nm}_p${i+1}.jpg`;if(used.has(f))f=`${nm}_${s.id.slice(0,4)}_p${i+1}.jpg`;used.add(f);z.file(f,data)}
+ const b=await z.generateAsync({type:'blob'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=cur.title.replace(/[^\w\-]+/g,'_')+'.zip';a.click();$('zm').textContent='Download complete.'}
+$('za').onclick=()=>zip(rows());$('zs').onclick=()=>zip(subs.filter(s=>sel.has(s.id)));
+init();
+</script></body></html>
