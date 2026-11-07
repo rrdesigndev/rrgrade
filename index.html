@@ -1,10 +1,9 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Student Submission Portal</title><link rel="icon" type="image/svg+xml" href="favicon.svg"><meta name="theme-color" content="#102a43"><link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="config.js"></script></head>
-<body><main class="narrow"><header class="brand"><span class="brand-mark">R</span><div><strong>RR Grade</strong><small>Student Submission Portal</small></div></header><section class="page-intro"><p class="eyebrow" id="kind">COURSE ACTIVITY</p><h1 id="title">Please wait…</h1><p class="intro-copy">Submit your work securely and make sure every page is clear and readable.</p></section><div id="app"></div>
+<body><main class="narrow"><header class="brand"><span class="brand-mark">R</span><div><strong>RR Grade</strong><small>Student Submission Portal</small></div></header><section class="page-intro"><p class="eyebrow" id="kind">COURSE ACTIVITY</p><h1 id="title">Please wait…</h1><p class="intro-copy" id="sect" style="font-weight:600"></p><p class="intro-copy">Submit your work securely and make sure every page is clear and readable.</p></section><div id="app"></div>
 <div class="card" id="form" hidden>
 <label>Full Name (Last Name, First Name)<input id="nm" autocomplete="name"></label>
-<label>Section / Class<input id="sec"></label>
 <label>Upload Images (up to 10 pages)<input id="fs" type="file" accept="image/*" multiple></label>
 <p class="mute" id="info"></p><button class="p" id="go">Submit Work</button></div></main>
 <script>
@@ -13,20 +12,20 @@ const show=m=>{$('form').hidden=true;$('app').innerHTML='<p class="msg">'+m+'</p
 let dev=''; try{dev=localStorage.dev||(localStorage.dev=crypto.randomUUID())}catch(e){}
 (async()=>{const{data}=await db.rpc('get_activity',{c:code});
  if(!data)return show('This submission link is invalid or unavailable.');
- $('title').textContent=data.title;$('kind').textContent=data.kind;
+ $('title').textContent=data.title;$('sect').textContent=data.section||'';$('kind').textContent=data.kind;
  if(data.state=='scheduled')return show('This activity is not open yet.');
  if(!data.open)return show('Submissions for this activity are now closed.');
  $('form').hidden=false})();
 $('fs').onchange=e=>{$('info').textContent=e.target.files.length+' image(s) selected'};
 const squeeze=f=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);c.toBlob(ok,'image/jpeg',.7)};i.onerror=no;i.src=URL.createObjectURL(f)});
 $('go').onclick=async()=>{const fs=[...$('fs').files],nm=$('nm').value.trim();
- if(!nm||!$('sec').value.trim())return alert('Please enter your name and section.');
+ if(!nm)return alert('Please enter your name.');
  if(!fs.length||fs.length>10)return alert('Please select between 1 and 10 images.');
  $('go').disabled=true;const paths=[];
  try{for(let k=0;k<fs.length;k++){$('info').textContent=`Uploading image ${k+1} of ${fs.length}…`;
   const p=`${code}/${crypto.randomUUID()}.jpg`,{error}=await db.storage.from('uploads').upload(p,await squeeze(fs[k]),{contentType:'image/jpeg'});
   if(error)throw error;paths.push(p)}
- const{error}=await db.rpc('submit',{c:code,nm,sec:$('sec').value.trim(),dev,f:paths});if(error)throw error;
+ const{error}=await db.rpc('submit',{c:code,nm,sec:'',dev,f:paths});if(error)throw error;
  show('Your work has been submitted, '+nm+'. You may now close this page.')}
  catch(e){$('go').disabled=false;$('info').textContent='';alert(/CLOSED|row-level|policy/i.test(e.message||'')?'Submissions are closed.':'An upload error occurred. Please try again.')}};
 </script></body></html>
